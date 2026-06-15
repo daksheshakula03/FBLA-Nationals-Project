@@ -20,15 +20,16 @@ BLACK = (0, 0, 0)
 BLUE = (100, 180, 255)
 GREEN = (0, 255, 0)
 RED = (255, 0, 0)
-GRAY = (220, 220, 220)
 PURPLE = (201, 185, 255)
-LIGHT_BLUE = (173, 216, 230)
+YELLOW = (173, 216, 230)
 NAVY = (15, 22, 52)
 GOLD = (240, 190, 60)
 LIGHT = (235, 236, 242)
+GRAY = (200, 200, 200)
+YELLOW = (255, 255, 0)
 
 title_font = pygame.font.SysFont("comic sans ms", 36, bold=True)
-question_font = pygame.font.SysFont("comic sans ms", 20)
+question_font = pygame.font.SysFont("comic sans ms", 16, bold=True)
 option_font = pygame.font.SysFont("comic sans ms", 24)
 feedback_font = pygame.font.SysFont("comic sans ms", 30, bold=True)
 small_font = pygame.font.SysFont("comic sans ms", 16)
@@ -113,7 +114,7 @@ class InputBox:
             txt = option_font.render(self.text, True, BLACK)
             surface.blit(txt, (self.rect.x + 10, self.rect.y + 8))
         else:
-            txt = option_font.render(self.placeholder, True, GRAY)
+            txt = option_font.render(self.placeholder, True, BLACK)
             surface.blit(txt, (self.rect.x + 10, self.rect.y + 8))
 
 
@@ -256,13 +257,118 @@ questions = [
         "options": ["The Pussycat Dolls", "Destiny's Child", "Spice Girls", "TLC"],
         "answer": "Destiny's Child"
     }
-]
+    ,
+    {
+        "question": "Which rapper released 'The Marshall Mathers LP' in 2000?",
+        "options": ["Eminem", "Jay-Z", "50 Cent", "Nas"],
+        "answer": "Eminem"
+    },
+    {
+        "question": "Which handheld gaming console did Nintendo release in 2004?",
+        "options": ["Nintendo DS", "Game Boy Advance SP", "PSP", "GameCube"],
+        "answer": "Nintendo DS"
+    },
+    {
+        "question": "What digital music store did Apple launch in 2003?",
+        "options": ["iTunes Store", "Spotify", "Pandora", "Amazon Music"],
+        "answer": "iTunes Store"
+    },
+    {
+        "question": "Which OutKast song topped the charts in 2003?",
+        "options": ["Hey Ya!", "Ms. Jackson", "Crazy in Love", "In Da Club"],
+        "answer": "Hey Ya!"
+    },
+    {
+        "question": "Who played Captain Jack Sparrow in the Pirates films?",
+        "options": ["Johnny Depp", "Orlando Bloom", "Leonardo DiCaprio", "Tom Cruise"],
+        "answer": "Johnny Depp"
+    },
+    {
+        "question": "Which company bought YouTube in 2006?",
+        "options": ["Google", "Microsoft", "Yahoo", "Apple"],
+        "answer": "Google"
+    },
+    {
+        "question": "Which studio produced the animated film 'Shrek' (2001)?",
+        "options": ["DreamWorks", "Pixar", "Disney", "Illumination"],
+        "answer": "DreamWorks"
+    },
+    {
+        "question": "Which carrier exclusively sold the first iPhone in the US in 2007?",
+        "options": ["AT&T", "Verizon", "T-Mobile", "Sprint"],
+        "answer": "AT&T"
+    },
+    {
+        "question": "Which company released the PlayStation Portable (PSP) in 2004?",
+        "options": ["Sony", "Nintendo", "Microsoft", "Sega"],
+        "answer": "Sony"
+    },
+    {
+        "question": "Which massively multiplayer game launched in 2004 and became hugely popular?",
+        "options": ["World of Warcraft", "EverQuest", "RuneScape", "Guild Wars"],
+        "answer": "World of Warcraft"
+    },
+    {
+        "question": "Which artist released the album 'Let Go' in 2002?",
+        "options": ["Avril Lavigne", "Britney Spears", "Christina Aguilera", "Beyoncé"],
+        "answer": "Avril Lavigne"
+    },
+    {
+        "question": "Who starred as Tony Stark in 'Iron Man' (2008)?",
+        "options": ["Robert Downey Jr.", "Chris Evans", "Christian Bale", "Hugh Jackman"],
+        "answer": "Robert Downey Jr."
+    },
+    {
+        "question": "Which social network was known for customizable HTML profiles and music widgets?",
+        "options": ["MySpace", "Facebook", "Friendster", "Orkut"],
+        "answer": "MySpace"
+    },
+    {
+        "question": "Which company had its initial public offering (IPO) in 2004?",
+        "options": ["Google", "Yahoo", "Microsoft", "eBay"],
+        "answer": "Google"
+    },
+    {
+        "question": "Which Apple device used a click wheel and dominated portable music players?",
+        "options": ["iPod", "Zune", "Walkman", "MP3 Player"],
+        "answer": "iPod"
+    },
+    {
+        "question": "Which 'Lord of the Rings' film won Best Picture at the 2004 Academy Awards?",
+        "options": ["The Return of the King", "The Fellowship of the Ring", "The Two Towers", "The Hobbit"],
+        "answer": "The Return of the King"
+    },
+    {
+        "question": "Which TV singing competition launched in the early 2000s and made Kelly Clarkson famous?",
+        "options": ["American Idol", "The Voice", "The X Factor", "America's Got Talent"],
+        "answer": "American Idol"
+    },
+    {
+        "question": "Which streaming company began mailing DVDs and started streaming in 2007?",
+        "options": ["Netflix", "Hulu", "Blockbuster", "Redbox"],
+        "answer": "Netflix"
+    },
+    {
+        "question": "Which search company began as a research project at Stanford and grew massively in the 2000s?",
+        "options": ["Google", "Bing", "AltaVista", "Lycos"],
+        "answer": "Google"
+    },
+    {
+        "question": "What Apple product introduced in 2007 changed the smartphone market?",
+        "options": ["iPhone", "iPod Touch", "BlackBerry", "Palm Treo"],
+        "answer": "iPhone"
+    }
+    ]
 
 current_questions = []
 question_index = 0
 score = 0
 selected_option = None
 game_over = False
+bonus_available = False
+bonus_active = False
+bonus_question = None
+bonus_used = False
 
 # Prevent immediate mouse-click propagation when switching screens
 ignore_mouse = False
@@ -296,12 +402,15 @@ class Button:
 
 def create_buttons():
     buttons = []
+    button_width = 400
+    x = WIDTH // 2 - button_width // 2
+    base_y = 180
     for i in range(4):
-        buttons.append(Button(200, 150 + i * 60, 400, 45, ""))
+        buttons.append(Button(x, base_y + i * 60, button_width, 45, ""))
     return buttons
 
 buttons = create_buttons()
-next_button = Button(620, 420, 150, 50, "NEXT")
+next_button = Button(WIDTH - 110, HEIGHT // 2 - 25, 90, 50, "NEXT")
 
 # Login system controls
 login_btn = Button(220, 310, 170, 45, "Sign In", BLUE)
@@ -317,6 +426,8 @@ home_logout_btn = Button(220, 260, 360, 45, "Log Out", GOLD)
 # Tutorial screen buttons (different positions)
 tutorial_start_btn = Button(220, 360, 170, 45, "Start Quiz", BLUE)
 tutorial_back_btn = Button(410, 360, 170, 45, "Back", GREEN)
+bonus_button = Button(140, 330, 180, 45, "Play Bonus", YELLOW)
+replay_home_btn = Button(460, 330, 180, 45, "Back to Home", BLUE)
 
 
 def build_quiz_questions():
@@ -326,18 +437,33 @@ def build_quiz_questions():
             "options": random.sample(q["options"], len(q["options"])),
             "answer": q["answer"]
         }
-        for q in random.sample(questions, 7)
+        for q in random.sample(questions, 10)
     ]
 
 
+def build_bonus_question():
+    remaining = [q for q in questions if q["question"] not in {item["question"] for item in current_questions}]
+    if not remaining:
+        remaining = questions[:]
+    chosen = random.choice(remaining)
+    return {
+        "question": chosen["question"],
+        "options": random.sample(chosen["options"], len(chosen["options"])),
+        "answer": chosen["answer"]
+    }
+
+
 def start_game():
-    global current_questions, question_index, score, selected_option, game_over, feedback, feedback_color
+    global current_questions, question_index, score, selected_option, game_over, feedback, feedback_color, bonus_available, bonus_active, bonus_question
     print("DEBUG: start_game() called")
     current_questions = build_quiz_questions()
     question_index = 0
     score = 0
     selected_option = None
     game_over = False
+    bonus_available = False
+    bonus_active = False
+    bonus_question = None
     feedback = ""
     feedback_color = BLACK
     load_question()
@@ -346,32 +472,53 @@ def start_game():
 def load_question():
     global selected_option
     selected_option = None
-    q = current_questions[question_index]
+    if bonus_active:
+        q = bonus_question
+    else:
+        q = current_questions[question_index]
     for i in range(4):
         buttons[i].text = q["options"][i]
 
 
+
 def check_answer():
     global feedback, feedback_color, score
-    correct = current_questions[question_index]["answer"]
+    if bonus_active:
+        correct = bonus_question["answer"]
+    else:
+        correct = current_questions[question_index]["answer"]
 
     if selected_option == correct:
-        score += 1
-        feedback = "✅ CORRECT!"
-        feedback_color = GREEN
+        if bonus_active:
+            score += 2
+            feedback = "✅ BONUS CORRECT! +2"
+            feedback_color = GOLD
+        else:
+            score += 1
+            feedback = "✅ CORRECT!"
+            feedback_color = GREEN
     else:
-        feedback = "❌ WRONG!"
+        if bonus_active:
+            feedback = "❌ BONUS WRONG!"
+        else:
+            feedback = "❌ WRONG!"
         feedback_color = RED
 
 
 def next_question():
-    global question_index, game_over, feedback
+    global question_index, game_over, feedback, bonus_available, bonus_active, bonus_question
     question_index += 1
     feedback = ""
 
-    if question_index >= len(current_questions):
+    if bonus_active:
+        bonus_active = False
         game_over = True
+        bonus_available = False
+        bonus_question = None
         auth.save_high_score(current_user, score)
+    elif question_index >= len(current_questions):
+        game_over = True
+        bonus_available = True
     else:
         load_question()
 
@@ -403,7 +550,7 @@ def draw():
         
         if current_user != "Guest" and current_user in auth.user_data:
             high_score = auth.user_data[current_user].get("high_score", 0)
-            high_score_text = question_font.render(f"High Score: {high_score}/7", True, GOLD)
+            high_score_text = question_font.render(f"High Score: {high_score}/10", True, GOLD)
             screen.blit(high_score_text, (WIDTH // 2 - high_score_text.get_width() // 2, 160))
         
         home_start_btn.draw(screen)
@@ -439,13 +586,40 @@ def draw():
         screen.fill(PURPLE)
 
         title = title_font.render("2000's Trivia Challenge", True, BLACK)
-        screen.blit(title, (190, 30))
+        screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 30))
 
-        if not game_over:
+        if bonus_active:
+            q = bonus_question
+            bonus_label = small_font.render("BONUS QUESTION", True, GOLD)
+            screen.blit(bonus_label, (WIDTH // 2 - bonus_label.get_width() // 2, 75))
+
+            question_text = question_font.render(q["question"], True, BLACK)
+            question_rect = question_text.get_rect(center=(WIDTH // 2, 120))
+            screen.blit(question_text, question_rect)
+
+            for btn in buttons:
+                btn.draw(screen, btn.text == selected_option)
+
+            next_button.draw(screen)
+
+            score_text = option_font.render(f"Score: {score}/10", True, BLACK)
+            screen.blit(score_text, (650, 20))
+            
+            user_text = small_font.render(f"Player: {current_user}", True, BLACK)
+            screen.blit(user_text, (20, 20))
+
+            if feedback:
+                shadow = feedback_font.render(feedback, True, BLACK)
+                text = feedback_font.render(feedback, True, feedback_color)
+                rect = text.get_rect(center=(WIDTH // 2, 440))
+                screen.blit(shadow, (rect.x + 3, rect.y + 3))
+                screen.blit(text, rect)
+        elif not game_over:
             q = current_questions[question_index]
 
             question_text = question_font.render(q["question"], True, BLACK)
-            screen.blit(question_text, (150, 100))
+            question_rect = question_text.get_rect(center=(WIDTH // 2, 120))
+            screen.blit(question_text, question_rect)
 
             for btn in buttons:
                 btn.draw(screen, btn.text == selected_option)
@@ -478,6 +652,10 @@ def draw():
 
             result = question_font.render(msg, True, BLACK)
             screen.blit(result, (260, 260))
+
+            if bonus_available:
+                bonus_button.draw(screen)
+            replay_home_btn.draw(screen)
 
     pygame.display.update()
 
@@ -552,19 +730,39 @@ while running:
                 elif tutorial_back_btn.is_clicked(pos):
                     game_state = "home"
 
-        elif game_state == "game" and not game_over:
+        elif game_state == "game":
             if event.type == pygame.MOUSEBUTTONDOWN:
                 pos = pygame.mouse.get_pos()
 
-                for btn in buttons:
-                    if btn.is_clicked(pos):
-                        selected_option = btn.text
+                if game_over:
+                    if bonus_available and bonus_button.is_clicked(pos):
+                        bonus_question = build_bonus_question()
+                        question_index = 0
+                        selected_option = None
+                        feedback = ""
+                        bonus_active = True
+                        game_over = False
+                        bonus_available = False
+                        load_question()
+                        continue
+                    if replay_home_btn.is_clicked(pos):
+                        game_state = "home"
+                        feedback = ""
+                        bonus_available = False
+                        bonus_active = False
+                        bonus_question = None
+                        continue
 
-                if next_button.is_clicked(pos) and selected_option:
-                    check_answer()
-                    draw()
-                    pygame.time.delay(1200)
-                    next_question()
+                else:
+                    for btn in buttons:
+                        if btn.is_clicked(pos):
+                            selected_option = btn.text
+
+                    if next_button.is_clicked(pos) and selected_option:
+                        check_answer()
+                        draw()
+                        pygame.time.delay(1200)
+                        next_question()
 
 pygame.quit()
 sys.exit()
