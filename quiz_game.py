@@ -15,6 +15,7 @@ WIDTH, HEIGHT = 800, 500
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("2000's Trivia Challenge")
 DATA_FILE = os.path.join(os.path.dirname(__file__), "user_data.json")
+IMAGE_DIR = os.path.join(os.path.dirname(__file__), "images")
 
 # Colors
 WHITE = (255, 255, 255)
@@ -72,6 +73,23 @@ THEMES = {
 }
 
 theme_mode = "dark"
+
+
+def load_image(filename, max_size=(520, 240)):
+    if not filename:
+        return None
+    path = os.path.join(IMAGE_DIR, filename)
+    if not os.path.isfile(path):
+        return None
+    try:
+        image = pygame.image.load(path).convert_alpha()
+        iw, ih = image.get_size()
+        mw, mh = max_size
+        scale = min(mw / iw, mh / ih, 1)
+        image = pygame.transform.smoothscale(image, (int(iw * scale), int(ih * scale)))
+        return image
+    except pygame.error:
+        return None
 
 
 def create_tone_sound(frequency, duration=0.35, amplitude=14000):
@@ -394,7 +412,8 @@ question_categories = {
         {
             "question": "Which social media platform was founded by Mark Zuckerberg in 2004?",
             "options": ["Twitter", "Facebook", "MySpace", "Friendster"],
-            "answer": "Facebook"
+            "answer": "Facebook",
+            "image": "facebook_logo.png"
         },
         {
             "question": "What popular video-sharing website was founded in 2005?",
@@ -426,7 +445,8 @@ question_categories = {
         {
             "question": "Michael Jackson is known as the King of what?",
             "options": ["Jazz", "Rock", "Pop", "Blues"],
-            "answer": "Pop"
+            "answer": "Pop",
+            "image": "pop_king.png"
         },
         {
             "question": "Who did Michael Jackson start a band with?",
@@ -458,7 +478,8 @@ question_categories = {
         {
             "question": "What were the Twin Towers rebuilt as?",
             "options": ["One World Trade Center", "Empire State Building", "Burj Khalifa", "Shanghai Tower"],
-            "answer": "One World Trade Center"
+            "answer": "One World Trade Center",
+            "image": "one_world_trade.png"
         },
         {
             "question": "When did Hurricane Katrina hit New Orleans?",
@@ -492,12 +513,17 @@ current_questions = []
 question_index = 0
 score = 0
 total_questions = 0
+session_base_score = 0
+current_category_base_score = 0
+bonus_points = 0
+current_is_bonus = False
 bonus_used = False
 bonus_taken = False
 bonus_offer = False
 selected_category = None
-completed_category = None
+completed_categories = set()
 selected_option = None
+current_question_image = None
 game_over = False
 
 # Prevent immediate mouse-click propagation when switching screens
@@ -584,6 +610,15 @@ tutorial_start_btn = Button(220, 360, 170, 45, "Start Quiz", BLUE)
 tutorial_back_btn = Button(410, 360, 170, 45, "Back", GREEN)
 
 
+TOTAL_BASE_QUESTIONS = len(question_categories) * 5
+
+def reset_quiz_progress():
+    global completed_categories, session_base_score, current_category_base_score, bonus_points
+    completed_categories = set()
+    session_base_score = 0
+    current_category_base_score = 0
+    bonus_points = 0
+
 def build_quiz_questions(source_questions, question_count=None):
     if question_count is None:
         question_count = len(source_questions)
@@ -597,13 +632,15 @@ def build_quiz_questions(source_questions, question_count=None):
     ]
 
 
-def start_game(question_list, starting_score=0, starting_total=None, reset_bonus=True, question_count=None):
-    global current_questions, question_index, score, total_questions, bonus_used, selected_option, game_over, feedback, feedback_color, bonus_taken, bonus_offer
+def start_game(question_list, starting_score=0, starting_total=None, reset_bonus=True, question_count=None, is_bonus=False):
+    global current_questions, question_index, score, total_questions, bonus_used, selected_option, game_over, feedback, feedback_color, bonus_taken, bonus_offer, current_is_bonus, current_category_base_score
     print("DEBUG: start_game() called")
     if reset_bonus:
         bonus_used = False
         bonus_taken = False
         bonus_offer = False
+    current_is_bonus = is_bonus
+    current_category_base_score = 0 if not is_bonus else current_category_base_score
     current_questions = build_quiz_questions(question_list, question_count)
     question_index = 0
     score = starting_score
@@ -618,7 +655,7 @@ def start_game(question_list, starting_score=0, starting_total=None, reset_bonus
 def start_category(category_name):
     global selected_category, game_state
     selected_category = category_name
-    start_game(question_categories[category_name], question_count=5)
+    start_game(question_categories[category_name], question_count=5, is_bonus=False)
     game_state = "game"
 
 
@@ -646,15 +683,17 @@ def start_bonus_question():
     bonus_used = True
     bonus_taken = True
     bonus_offer = False
+    current_is_bonus = True
     game_state = "game"
     game_over = False
     load_question()
 
 
 def load_question():
-    global selected_option
+    global selected_option, current_question_image
     selected_option = None
     q = current_questions[question_index]
+    current_question_image = load_image(q.get("image"))
     for i in range(4):
         buttons[i].text = q["options"][i]
 
@@ -680,11 +719,15 @@ def wrap_text(text, font, max_width):
 
 
 def check_answer():
-    global feedback, feedback_color, score
+    global feedback, feedback_color, score, session_base_score, current_category_base_score, bonus_points
     correct = current_questions[question_index]["answer"]
 
     if selected_option == correct:
         score += 1
+        if current_is_bonus:
+            bonus_points += 1
+        else:
+            current_category_base_score += 1
         feedback = "✅ CORRECT!"
         feedback_color = GREEN
         play_sound(correct_sound)
@@ -695,15 +738,20 @@ def check_answer():
 
 
 def next_question():
-    global question_index, game_over, feedback, bonus_offer, bonus_taken, game_state
+    global question_index, game_over, feedback, bonus_offer, bonus_taken, game_state, session_base_score
     question_index += 1
     feedback = ""
 
     if question_index >= len(current_questions):
         if not bonus_taken and not bonus_offer:
+            session_base_score += current_category_base_score
+            completed_categories.add(selected_category)
             bonus_offer = True
             game_state = "bonus_offer"
             return
+        if not current_is_bonus:
+            session_base_score += current_category_base_score
+            completed_categories.add(selected_category)
         game_over = True
         auth.save_high_score(current_user, score)
     else:
@@ -767,15 +815,15 @@ def draw():
         title = title_font.render("Choose a Quiz Category", True, theme["title"])
         screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 40))
 
-        if completed_category:
-            prompt = question_font.render("Choose a different category:", True, theme["text"])
+        if completed_categories:
+            prompt = question_font.render("Completed categories are locked. Pick a new one:", True, theme["text"])
         else:
             prompt = question_font.render("Select one of the categories below:", True, theme["text"])
         screen.blit(prompt, (WIDTH // 2 - prompt.get_width() // 2, 120))
 
-        category_tech_btn.enabled = completed_category != "Technology"
-        category_celebrity_btn.enabled = completed_category != "Celebrities & More"
-        category_history_btn.enabled = completed_category != "Historical Events"
+        category_tech_btn.enabled = "Technology" not in completed_categories
+        category_celebrity_btn.enabled = "Celebrities & More" not in completed_categories
+        category_history_btn.enabled = "Historical Events" not in completed_categories
 
         category_tech_btn.draw(screen, False, theme)
         category_celebrity_btn.draw(screen, False, theme)
@@ -820,12 +868,18 @@ def draw():
             q = current_questions[question_index]
 
             question_lines = wrap_text(q["question"], question_font, 520)
-            question_height = len(question_lines) * 30
             for i, line in enumerate(question_lines):
                 question_text = question_font.render(line, True, theme["text"])
                 screen.blit(question_text, (150, 100 + i * 30))
 
-            answer_start_y = 100 + question_height + 20
+            question_bottom = 100 + len(question_lines) * 30
+            image_height = 0
+            if current_question_image:
+                img_rect = current_question_image.get_rect(center=(WIDTH // 2, question_bottom + current_question_image.get_height() // 2 + 20))
+                screen.blit(current_question_image, img_rect)
+                image_height = current_question_image.get_height() + 20
+
+            answer_start_y = question_bottom + image_height + 20
             for i, btn in enumerate(buttons):
                 btn.rect.y = answer_start_y + i * 60
                 btn.draw(screen, btn.text == selected_option, theme)
@@ -870,6 +924,27 @@ def draw():
 
             prompt = small_font.render("Choose your next move:", True, theme["text"])
             screen.blit(prompt, (WIDTH // 2 - prompt.get_width() // 2, 290))
+
+    elif game_state == "final_summary":
+        screen.fill(theme["surface"])
+        title = title_font.render("Quiz Complete!", True, theme["title"])
+        screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 40))
+
+        base_percentage = round((session_base_score / TOTAL_BASE_QUESTIONS) * 100) if TOTAL_BASE_QUESTIONS else 0
+        base_text = question_font.render(f"Base Score: {session_base_score}/{TOTAL_BASE_QUESTIONS} = {base_percentage}%", True, theme["text"])
+        bonus_text = question_font.render(f"Bonus Points: {bonus_points}", True, theme["text"])
+        total_text = question_font.render(f"Total Points: {session_base_score + bonus_points}", True, theme["text"])
+        extra_text = small_font.render("Bonus can push your score above 100%!", True, theme["accent"])
+
+        screen.blit(base_text, (WIDTH // 2 - base_text.get_width() // 2, 160))
+        screen.blit(bonus_text, (WIDTH // 2 - bonus_text.get_width() // 2, 210))
+        screen.blit(total_text, (WIDTH // 2 - total_text.get_width() // 2, 260))
+        screen.blit(extra_text, (WIDTH // 2 - extra_text.get_width() // 2, 310))
+
+        main_menu_button.draw(screen, False, theme)
+
+        prompt = small_font.render("Return to the home screen to view your profile.", True, theme["text"])
+        screen.blit(prompt, (WIDTH // 2 - prompt.get_width() // 2, 360))
 
     elif game_state == "bonus_offer":
         screen.fill(theme["surface"])
@@ -1040,8 +1115,33 @@ while running:
                     continue
 
                 if main_menu_button.is_clicked(pos):
-                    completed_category = selected_category
-                    game_state = "category_select"
+                    if selected_category:
+                        completed_categories.add(selected_category)
+                    if len(completed_categories) == len(question_categories):
+                        game_state = "final_summary"
+                    else:
+                        game_state = "category_select"
+                    game_over = False
+                    current_questions = []
+                    total_questions = 0
+                    bonus_used = False
+                    bonus_taken = False
+                    bonus_offer = False
+                    celebration_played = False
+                    feedback = ""
+                    selected_category = None
+
+        elif game_state == "final_summary":
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                pos = pygame.mouse.get_pos()
+
+                if theme_toggle_btn.is_clicked(pos):
+                    theme_mode = "light" if theme_mode == "dark" else "dark"
+                    theme_toggle_btn.text = "Dark Mode" if theme_mode == "light" else "Light Mode"
+                    continue
+
+                if main_menu_button.is_clicked(pos):
+                    game_state = "home"
                     game_over = False
                     current_questions = []
                     total_questions = 0
