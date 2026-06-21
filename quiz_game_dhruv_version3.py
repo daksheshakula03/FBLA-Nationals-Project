@@ -571,6 +571,7 @@ selected_option = None
 current_question_image = None
 game_over = False
 show_category_facts = False
+facts_opened_this_round = False
 
 # Prevent immediate mouse-click propagation when switching screens
 ignore_mouse = False
@@ -631,7 +632,8 @@ buttons = create_buttons()
 next_button = Button(620, 420, 150, 50, "NEXT")
 theme_toggle_btn = Button(WIDTH - 180, 20, 160, 40, "Dark Mode")
 main_menu_button = Button(220, 320, 170, 45, "Back to Login", BLUE)
-bonus_round_button = Button(410, 320, 170, 45, "Bonus 3", GREEN)
+gameover_facts_button = Button(410, 320, 170, 45, "View Facts", GREEN)
+bonus_round_button = Button(410, 320, 170, 45, "View Facts", GREEN)
 
 # Login system controls
 login_btn = Button(220, 310, 170, 45, "Sign In", BLUE)
@@ -650,10 +652,10 @@ category_history_btn = Button(180, 340, 260, 60, "Historical Events", GOLD)
 category_back_btn = Button(460, 420, 260, 60, "Back", RED)
 
 bonus_question_button = Button(180, 320, 260, 55, "Bonus Question", BLUE)
-skip_bonus_button = Button(460, 320, 260, 55, "Skip Bonus", GRAY)
+skip_bonus_button = Button(460, 320, 260, 55, "Skip Bonus", RED)
 facts_view_button = Button(315, 385, 170, 45, "View Facts", GREEN)
 facts_bonus_button = Button(180, 385, 170, 45, "Bonus Question", BLUE)
-facts_skip_button = Button(420, 385, 170, 45, "Skip Bonus", GRAY)
+facts_skip_button = Button(420, 385, 170, 45, "Skip Bonus", RED)
 facts_back_button = Button(WIDTH - 190, HEIGHT - 70, 170, 45, "Back", BLUE)
 
 # Tutorial screen buttons (different positions)
@@ -704,9 +706,10 @@ def start_game(question_list, starting_score=0, starting_total=None, reset_bonus
 
 
 def start_category(category_name):
-    global selected_category, game_state, last_completed_category
+    global selected_category, game_state, last_completed_category, facts_opened_this_round
     selected_category = category_name
     last_completed_category = None
+    facts_opened_this_round = False
     start_game(question_categories[category_name], question_count=5, is_bonus=False)
     game_state = "game"
 
@@ -750,10 +753,12 @@ def go_to_category_select():
 
 
 def open_facts_view(category_name, return_state="bonus_offer"):
-    global game_state, facts_view_category, facts_return_state
+    global game_state, facts_view_category, facts_return_state, ignore_mouse, facts_opened_this_round
     facts_view_category = category_name
     facts_return_state = return_state
+    facts_opened_this_round = True
     game_state = "facts_view"
+    ignore_mouse = True
 
 
 def load_question():
@@ -986,9 +991,20 @@ def draw():
                 play_sound(celebration_sound)
                 celebration_played = True
 
+            if theme_mode == "light":
+                screen.fill((246, 252, 242))
+                pygame.draw.circle(screen, (240, 190, 60), (100, 90), 60)
+                pygame.draw.circle(screen, (201, 185, 255), (710, 95), 55)
+                pygame.draw.circle(screen, (173, 216, 230), (740, 420), 85)
+            else:
+                screen.fill((13, 20, 32))
+                pygame.draw.circle(screen, (240, 190, 60), (100, 90), 60)
+                pygame.draw.circle(screen, (201, 185, 255), (710, 95), 55)
+                pygame.draw.circle(screen, (173, 216, 230), (740, 420), 85)
+
             percentage = round((score / total_questions) * 100) if total_questions else 0
             final = question_font.render(f"Final Score: {score}/{total_questions} = {percentage}%", True, theme["text"])
-            screen.blit(final, (250, 180))
+            screen.blit(final, (WIDTH // 2 - final.get_width() // 2, 150))
 
             if score == total_questions == 10:
                 msg = "🎉 UNBELIEVABLE! 10/10! 🎉"
@@ -1000,9 +1016,12 @@ def draw():
                 msg = "👍 Keep Practicing!"
 
             result = question_font.render(msg, True, theme["text"])
-            screen.blit(result, (180, 240))
+            screen.blit(result, (WIDTH // 2 - result.get_width() // 2, 220))
 
             main_menu_button.draw(screen, False, theme)
+            gameover_facts_button.draw(screen, False, theme)
+            if bonus_taken and not facts_opened_this_round:
+                bonus_round_button.draw(screen, False, theme)
 
             prompt = small_font.render("Choose your next move:", True, theme["text"])
             screen.blit(prompt, (WIDTH // 2 - prompt.get_width() // 2, 290))
@@ -1055,6 +1074,7 @@ def draw():
         screen.blit(prompt, (WIDTH // 2 - prompt.get_width() // 2, 380))
 
     elif game_state == "bonus_offer":
+        offer_card_text_color = BLACK if theme_mode == "dark" else theme["text"]
         if theme_mode == "light":
             screen.fill((246, 252, 242))
             pygame.draw.circle(screen, (240, 190, 60), (100, 90), 60)
@@ -1073,8 +1093,8 @@ def draw():
         pygame.draw.rect(screen, (255, 255, 255), offer_card, border_radius=20)
         pygame.draw.rect(screen, GOLD, offer_card, 3, border_radius=20)
 
-        summary = question_font.render(f"You scored {score}/{total_questions} so far!", True, theme["text"])
-        prompt = question_font.render("Would you like a chance to earn one bonus point?", True, theme["text"])
+        summary = question_font.render(f"You scored {score}/{total_questions} so far!", True, offer_card_text_color)
+        prompt = question_font.render("Would you like a chance to earn one bonus point?", True, offer_card_text_color)
         screen.blit(summary, (offer_card.x + 38, offer_card.y + 45))
         screen.blit(prompt, (offer_card.x + 38, offer_card.y + 95))
 
@@ -1096,6 +1116,8 @@ def draw():
     elif game_state == "facts_view":
         facts_category = facts_view_category or selected_category or last_completed_category
         facts = category_facts.get(facts_category, [])
+        facts_card_text_color = BLACK if theme_mode == "dark" else theme["text"]
+        show_facts_choice_buttons = facts_return_state == "bonus_offer"
         if theme_mode == "light":
             screen.fill((250, 247, 240))
             pygame.draw.circle(screen, (240, 190, 60), (85, 80), 65)
@@ -1114,21 +1136,48 @@ def draw():
         pygame.draw.rect(screen, (255, 255, 255), facts_card, border_radius=22)
         pygame.draw.rect(screen, (201, 185, 255), facts_card, 3, border_radius=22)
 
-        header = question_font.render(f"3 facts about {facts_category}:", True, theme["text"])
+        header = question_font.render(f"3 facts about {facts_category}:", True, facts_card_text_color)
         screen.blit(header, (facts_card.x + 28, facts_card.y + 30))
 
-        for index, fact in enumerate(facts[:3]):
-            bullet_color = [LIGHT_BLUE, LIGHT_GREEN, GOLD][index % 3]
-            bullet = pygame.Rect(facts_card.x + 28, facts_card.y + 78 + index * 62, 18, 18)
-            pygame.draw.rect(screen, bullet_color, bullet, border_radius=6)
-            fact_text = small_font.render(fact, True, theme["text"])
-            screen.blit(fact_text, (facts_card.x + 58, facts_card.y + 72 + index * 62))
+        facts_left = facts_card.x + 58
+        facts_top = facts_card.y + 72
+        facts_width = facts_card.width - 86
+        facts_bottom_limit = facts_card.bottom - 18
+        line_height = small_font.get_height() + 3
+        facts_y = facts_top
 
-        facts_bonus_button.draw(screen, False, theme)
-        facts_skip_button.draw(screen, False, theme)
+        for index, fact in enumerate(facts[:3]):
+            wrapped_lines = wrap_text(fact, small_font, facts_width)
+            # Keep each fact compact so all facts remain inside the card.
+            max_lines_per_fact = 2
+            if len(wrapped_lines) > max_lines_per_fact:
+                wrapped_lines = wrapped_lines[:max_lines_per_fact]
+                while wrapped_lines[-1] and small_font.size(wrapped_lines[-1] + "...")[0] > facts_width:
+                    wrapped_lines[-1] = wrapped_lines[-1][:-1]
+                wrapped_lines[-1] = wrapped_lines[-1].rstrip() + "..."
+
+            bullet_color = [LIGHT_BLUE, LIGHT_GREEN, GOLD][index % 3]
+            bullet = pygame.Rect(facts_card.x + 28, facts_y + 2, 18, 18)
+            pygame.draw.rect(screen, bullet_color, bullet, border_radius=6)
+
+            for line in wrapped_lines:
+                if facts_y + line_height > facts_bottom_limit:
+                    break
+                fact_text = small_font.render(line, True, facts_card_text_color)
+                screen.blit(fact_text, (facts_left, facts_y))
+                facts_y += line_height
+
+            facts_y += 8
+            if facts_y + line_height > facts_bottom_limit:
+                break
+
+        if show_facts_choice_buttons:
+            facts_bonus_button.draw(screen, False, theme)
+            facts_skip_button.draw(screen, False, theme)
         facts_back_button.draw(screen, False, theme)
-        prompt = small_font.render("Choose your next step.", True, theme["accent"])
-        screen.blit(prompt, (WIDTH // 2 - prompt.get_width() // 2, facts_back_button.y - 28))
+        prompt_message = "Choose your next step." if show_facts_choice_buttons else "Tap Back to return."
+        prompt = small_font.render(prompt_message, True, theme["accent"])
+        screen.blit(prompt, (WIDTH // 2 - prompt.get_width() // 2, facts_card.bottom - 25))
 
         theme_toggle_btn.draw(screen, False, theme)
 
@@ -1268,6 +1317,9 @@ while running:
 
         elif game_state == "bonus_offer":
             if event.type == pygame.MOUSEBUTTONDOWN:
+                if ignore_mouse:
+                    ignore_mouse = False
+                    continue
                 pos = pygame.mouse.get_pos()
 
                 if facts_view_button.is_clicked(pos):
@@ -1282,14 +1334,21 @@ while running:
                 if bonus_question_button.is_clicked(pos):
                     start_bonus_question()
                 elif skip_bonus_button.is_clicked(pos):
+                    play_sound(celebration_sound)
+                    pygame.time.delay(600)
                     bonus_offer = False
                     bonus_used = True
                     game_over = True
+                    celebration_played = False
                     game_state = "game"
                     auth.save_high_score(current_user, score)
+                    continue
 
         elif game_state == "facts_view":
             if event.type == pygame.MOUSEBUTTONDOWN:
+                if ignore_mouse:
+                    ignore_mouse = False
+                    continue
                 pos = pygame.mouse.get_pos()
 
                 if theme_toggle_btn.is_clicked(pos):
@@ -1297,17 +1356,21 @@ while running:
                     theme_toggle_btn.text = "Dark Mode" if theme_mode == "light" else "Light Mode"
                     continue
 
-                if facts_bonus_button.is_clicked(pos):
+                if facts_return_state == "bonus_offer" and facts_bonus_button.is_clicked(pos):
                     game_state = facts_return_state
                     start_bonus_question()
-                elif facts_skip_button.is_clicked(pos):
+                elif facts_return_state == "bonus_offer" and facts_skip_button.is_clicked(pos):
+                    play_sound(celebration_sound)
+                    pygame.time.delay(600)
                     bonus_offer = False
                     bonus_used = True
                     game_over = True
+                    celebration_played = False
                     game_state = "game"
                     auth.save_high_score(current_user, score)
+                    continue
                 elif facts_back_button.is_clicked(pos):
-                    game_state = facts_return_state
+                    game_state = "game" if facts_return_state == "game_over" else facts_return_state
 
         elif game_state == "game" and game_over:
             if event.type == pygame.MOUSEBUTTONDOWN:
@@ -1316,6 +1379,14 @@ while running:
                 if theme_toggle_btn.is_clicked(pos):
                     theme_mode = "light" if theme_mode == "dark" else "dark"
                     theme_toggle_btn.text = "Dark Mode" if theme_mode == "light" else "Light Mode"
+                    continue
+
+                if gameover_facts_button.is_clicked(pos):
+                    open_facts_view(selected_category or last_completed_category or "Technology", "game_over")
+                    continue
+
+                if bonus_taken and not facts_opened_this_round and bonus_round_button.is_clicked(pos):
+                    open_facts_view(selected_category or last_completed_category or "Technology", "game_over")
                     continue
 
                 if main_menu_button.is_clicked(pos):
@@ -1335,6 +1406,7 @@ while running:
                     feedback = ""
                     selected_category = None
                     facts_view_category = None
+                    facts_opened_this_round = False
 
         elif game_state == "final_summary":
             if event.type == pygame.MOUSEBUTTONDOWN:
@@ -1357,6 +1429,7 @@ while running:
                     feedback = ""
                     selected_category = None
                     facts_view_category = None
+                    facts_opened_this_round = False
 
 pygame.quit()
 sys.exit()
