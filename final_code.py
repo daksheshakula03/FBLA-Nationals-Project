@@ -745,6 +745,8 @@ total_questions = 0         # Running total of questions answered (current round
 session_base_score = 0      # Sum of base (non-bonus) points across all completed categories
 current_category_base_score = 0  # Base points earned in the category currently in progress
 bonus_points = 0            # Total bonus points earned this session
+session_base_answered = 0   # Number of base questions answered this session
+session_bonus_answered = 0  # Number of bonus questions answered this session
 current_is_bonus = False    # True while the player is answering a bonus question
 bonus_used = False          # True once the bonus offer has been accepted or declined
 bonus_taken = False         # True if the player chose to attempt the bonus question
@@ -893,10 +895,13 @@ def reset_quiz_progress():
     """Clear all session-wide progress tracking, e.g. when starting a
     brand-new playthrough after logging out or finishing all categories."""
     global completed_categories, session_base_score, current_category_base_score, bonus_points
+    global session_base_answered, session_bonus_answered
     completed_categories = set()
     session_base_score = 0
     current_category_base_score = 0
     bonus_points = 0
+    session_base_answered = 0
+    session_bonus_answered = 0
 
 def build_quiz_questions(source_questions, question_count=None):
     """Pick a random sample of questions from a category's question
@@ -1070,6 +1075,7 @@ def check_answer():
     update score/feedback, color-code the buttons (green for correct,
     red for an incorrect pick), and play the matching sound effect."""
     global feedback, feedback_color, score, session_base_score, current_category_base_score, bonus_points
+    global session_base_answered, session_bonus_answered
 
     correct = current_questions[question_index]["answer"]
 
@@ -1087,6 +1093,13 @@ def check_answer():
         for btn in buttons:
             if btn.text == selected_option:
                 btn.color = wrong_highlight
+
+    # Track every answered question so summary denominators can reflect
+    # what the player actually attempted (including optional bonuses).
+    if current_is_bonus:
+        session_bonus_answered += 1
+    else:
+        session_base_answered += 1
 
     # Scoring logic + bottom-of-screen feedback text
     if selected_option == correct:
@@ -1422,12 +1435,27 @@ def draw():
         accent_bar = pygame.Rect(summary_card.x, summary_card.y, summary_card.width, 18)
         pygame.draw.rect(screen, LIGHT_BLUE, accent_bar, border_radius=18)
 
-        base_percentage = round((session_base_score / TOTAL_BASE_QUESTIONS) * 100) if TOTAL_BASE_QUESTIONS else 0
-        base_text = question_font.render(f"Base Score: {session_base_score}/{TOTAL_BASE_QUESTIONS} = {base_percentage}%", True, theme["text"])
-        bonus_text = question_font.render(f"Bonus Points: {bonus_points}", True, theme["text"])
-        total_points = session_base_score + bonus_points
-        total_text = question_font.render(f"Total Points: {total_points}", True, theme["text"])
-        extra_text = small_font.render("Bonus can push your score above 100%!", True, theme["accent"])
+        total_right = session_base_score + bonus_points
+        total_answered = session_base_answered + session_bonus_answered
+        base_percentage = round((session_base_score / session_base_answered) * 100) if session_base_answered else 0
+        bonus_percentage = round((bonus_points / session_bonus_answered) * 100) if session_bonus_answered else 0
+
+        base_text = question_font.render(
+            f"Base Score: {session_base_score}/{session_base_answered} = {base_percentage}%",
+            True,
+            theme["text"],
+        )
+        bonus_text = question_font.render(
+            f"Bonus Score: {bonus_points}/{session_bonus_answered} = {bonus_percentage}%",
+            True,
+            theme["text"],
+        )
+        total_text = question_font.render(
+            f"Total Points: {total_right}/{total_answered}",
+            True,
+            theme["text"],
+        )
+        extra_text = small_font.render("Final score uses every question you answered.", True, theme["accent"])
 
         screen.blit(base_text, (summary_card.x + 34, summary_card.y + 48))
         screen.blit(bonus_text, (summary_card.x + 34, summary_card.y + 92))
@@ -1437,8 +1465,8 @@ def draw():
         score_badge = pygame.Rect((WIDTH - 190) // 2, 296, 190, 84)
         pygame.draw.rect(screen, LIGHT_GREEN, score_badge, border_radius=18)
         pygame.draw.rect(screen, (110, 180, 110), score_badge, 2, border_radius=18)
-        badge_title = small_font.render("Final Score", True, BLACK)
-        badge_value = title_font.render(str(total_points), True, BLACK)
+        badge_title = small_font.render("Questions Right", True, BLACK)
+        badge_value = title_font.render(str(total_right), True, BLACK)
         badge_title_rect = badge_title.get_rect(center=(score_badge.centerx, score_badge.y + 22))
         badge_value_rect = badge_value.get_rect(center=(score_badge.centerx, score_badge.y + 56))
         screen.blit(badge_title, badge_title_rect)
@@ -1574,6 +1602,7 @@ while running:
                     password = password_box.text.strip()
                     success, auth_message = auth.authenticate(username, password)
                     if success:
+                        reset_quiz_progress()
                         # theme_mode = "light"
                         # theme_toggle_btn.text = "Dark Mode"
                         current_user = username
@@ -1597,6 +1626,7 @@ while running:
                         print(f"DEBUG: registration successful for {username}; stay on login screen")
 
                 elif guest_btn.is_clicked(pos):
+                    reset_quiz_progress()
                     # theme_mode = "light"
                     # theme_toggle_btn.text = "Dark Mode"
                     current_user = "Guest"
@@ -1623,6 +1653,7 @@ while running:
                     game_state = "tutorial"
                 elif home_logout_btn.is_clicked(pos):
                     # simple logout: go back to login screen
+                    reset_quiz_progress()
                     current_user = "Guest"
                     username_box.text = ""
                     password_box.text = ""
@@ -1764,6 +1795,7 @@ while running:
                     continue
 
                 if final_summary_menu_btn.is_clicked(pos):
+                    reset_quiz_progress()
                     game_state = "login"
                     game_over = False
                     current_questions = []
