@@ -811,9 +811,10 @@ class Button:
         pygame.draw.rect(surface, base_color, self.rect, border_radius=10)
         pygame.draw.rect(surface, theme["text"], self.rect, 2, border_radius=10)
 
-        # Text color logic: pick black or white depending on the
-        # background color so the label stays readable.
-        text_color = self.get_text_color(base_color)
+        # Text color logic: use the theme's button_text color (black in
+        # both light and dark themes) so option/answer text always
+        # renders black.
+        text_color = theme.get("button_text", self.get_text_color(base_color))
 
         if theme_mode == "light" and self.text.lower() == "next":
             text_color = BLACK
@@ -876,9 +877,7 @@ category_back_btn = Button(460, 420, 260, 60, "Back", RED)
 bonus_question_button = Button(180, 320, 260, 55, "Bonus Question", BLUE)
 skip_bonus_button = Button(460, 320, 260, 55, "Skip Bonus", GRAY)
 facts_view_button = Button(315, 385, 170, 45, "View Facts", GREEN)
-facts_bonus_button = Button(180, 385, 170, 45, "Bonus Question", BLUE)
-facts_skip_button = Button(420, 385, 170, 45, "Skip Bonus", GRAY)
-facts_back_button = Button(WIDTH - 190, HEIGHT - 70, 170, 45, "Back", BLUE)
+facts_back_button = Button(WIDTH // 2 - 85, HEIGHT - 70, 170, 45, "Back", BLUE)
 
 # Tutorial screen buttons (different positions)
 tutorial_start_btn = Button(220, 360, 170, 45, "Start Quiz", BLUE)
@@ -1443,19 +1442,19 @@ def draw():
         base_text = question_font.render(
             f"Base Score: {session_base_score}/{session_base_answered} = {base_percentage}%",
             True,
-            theme["text"],
+            BLACK,
         )
         bonus_text = question_font.render(
             f"Bonus Score: {bonus_points}/{session_bonus_answered} = {bonus_percentage}%",
             True,
-            theme["text"],
+            BLACK,
         )
         total_text = question_font.render(
             f"Total Points: {total_right}/{total_answered}",
             True,
-            theme["text"],
+            BLACK,
         )
-        extra_text = small_font.render("Final score uses every question you answered.", True, theme["accent"])
+        extra_text = small_font.render("Final score uses every question you answered.", True, BLACK)
 
         screen.blit(base_text, (summary_card.x + 34, summary_card.y + 48))
         screen.blit(bonus_text, (summary_card.x + 34, summary_card.y + 92))
@@ -1559,8 +1558,6 @@ def draw():
 
             fact_y += max(56, len(fact_lines) * 22 + 12)
 
-        facts_bonus_button.draw(screen, False, theme)
-        facts_skip_button.draw(screen, False, theme)
         facts_back_button.draw(screen, False, theme)
         prompt = small_font.render("", True, theme["accent"])
         screen.blit(prompt, (WIDTH // 2 - prompt.get_width() // 2, facts_back_button.rect.y - 28))
@@ -1743,16 +1740,7 @@ while running:
                     theme_toggle_btn.text = "Dark Mode" if theme_mode == "light" else "Light Mode"
                     continue
 
-                if facts_bonus_button.is_clicked(pos):
-                    game_state = facts_return_state
-                    start_bonus_question()
-                elif facts_skip_button.is_clicked(pos):
-                    bonus_offer = False
-                    bonus_used = True
-                    game_over = True
-                    game_state = "game"
-                    auth.save_high_score(current_user, score)
-                elif facts_back_button.is_clicked(pos):
+                if facts_back_button.is_clicked(pos):
                     game_state = facts_return_state
 
         elif game_state == "game" and game_over:
