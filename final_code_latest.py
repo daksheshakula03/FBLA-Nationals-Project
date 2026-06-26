@@ -14,10 +14,7 @@ import sys
 import array
 import pygame
 
-# Pre-init the mixer BEFORE pygame.init() so our custom sound settings
-# (44100 Hz sample rate, 16-bit signed, mono channel, small buffer) take
-# effect. This must happen first because pygame.mixer locks its settings
-# once it has been initialized.
+
 pygame.mixer.pre_init(44100, -16, 1, 512)
 pygame.init()
 
@@ -1289,7 +1286,7 @@ def draw():
             "4. A correct bonus answer adds one extra point.",
             "5. Your highest score is saved to your profile.",
             "",
-            "Good luck!"
+            
         ]
 
         y_pos = 130
